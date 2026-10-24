@@ -23,14 +23,13 @@ jobs:
         env:
           DEPLOY_PATH: ${{ vars.VPS_DEPLOY_PATH || '/home/ubuntu/devops/capfootball' }}
           DEPLOY_SHA: ${{ github.sha }}
-          PUBLIC_SOCKET_URL: ${{ vars.NEXT_PUBLIC_SOCKET_URL }}
           PUBLIC_VAPID_KEY: ${{ vars.NEXT_PUBLIC_VAPID_PUBLIC_KEY }}
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           command_timeout: 30m
-          envs: DEPLOY_PATH,DEPLOY_SHA,PUBLIC_SOCKET_URL,PUBLIC_VAPID_KEY
+          envs: DEPLOY_PATH,DEPLOY_SHA,PUBLIC_VAPID_KEY
           script: |
             set -eu
             cd "$DEPLOY_PATH"
@@ -59,57 +58,48 @@ jobs:
             ' > "$ENV_FILE"
 
             env_value() { sed -n "s/^$1=//p" "$ENV_FILE"; }
-            REALTIME_DRIVER=$(env_value REALTIME_DRIVER)
-            REALTIME_DRIVER=${REALTIME_DRIVER:-none}
-            PUBLIC_DRIVER=$(env_value NEXT_PUBLIC_REALTIME_DRIVER)
-            PUBLIC_DRIVER=${PUBLIC_DRIVER:-$REALTIME_DRIVER}
-            if [ "$PUBLIC_DRIVER" != "$REALTIME_DRIVER" ]; then
-              echo "REALTIME_DRIVER and NEXT_PUBLIC_REALTIME_DRIVER must match in .env." >&2
+            WEB_PORT=$(env_value PORT)
+            WEB_PORT=${WEB_PORT:-3019}
+            case "$WEB_PORT" in
+              *[!0-9]*) echo "PORT must be a number between 1 and 65535." >&2; exit 1 ;;
+            esac
+            if [ "${#WEB_PORT}" -gt 5 ] || [ "$WEB_PORT" -lt 1 ] || [ "$WEB_PORT" -gt 65535 ]; then
+              echo "PORT must be a number between 1 and 65535." >&2
               exit 1
             fi
-            PUBLIC_SOCKET_URL=${PUBLIC_SOCKET_URL:-$(env_value NEXT_PUBLIC_SOCKET_URL)}
+            for key in PUSHER_APP_ID NEXT_PUBLIC_PUSHER_KEY PUSHER_SECRET; do
+              if [ -z "$(env_value "$key")" ]; then
+                echo "Missing $key in VPS .env." >&2
+                exit 1
+              fi
+            done
             PUBLIC_VAPID_KEY=${PUBLIC_VAPID_KEY:-$(env_value NEXT_PUBLIC_VAPID_PUBLIC_KEY)}
             PUBLIC_PUSHER_KEY=$(env_value NEXT_PUBLIC_PUSHER_KEY)
             PUBLIC_PUSHER_CLUSTER=$(env_value NEXT_PUBLIC_PUSHER_CLUSTER)
 
             echo "Build new image using the existing configuration..."
             docker build \
-              --build-arg "NEXT_PUBLIC_REALTIME_DRIVER=$PUBLIC_DRIVER" \
-              --build-arg "NEXT_PUBLIC_SOCKET_URL=$PUBLIC_SOCKET_URL" \
               --build-arg "NEXT_PUBLIC_PUSHER_KEY=$PUBLIC_PUSHER_KEY" \
               --build-arg "NEXT_PUBLIC_PUSHER_CLUSTER=${PUBLIC_PUSHER_CLUSTER:-ap1}" \
               --build-arg "NEXT_PUBLIC_VAPID_PUBLIC_KEY=$PUBLIC_VAPID_KEY" \
               -t "$APP_IMAGE" .
 
-            echo "Replace web and socket containers..."
+            echo "Replace web container..."
+            # Remove the legacy realtime container when updating an existing deployment.
             docker rm -f capfootball-app-1 capfootball-realtime-1 >/dev/null 2>&1 || true
             docker run -d \
               --name capfootball-app-1 \
               --restart unless-stopped \
-              --network host \
+              --publish "$WEB_PORT:3019" \
               --env-file "$ENV_FILE" \
               --env PORT=3019 \
               --env HOSTNAME=0.0.0.0 \
               "$APP_IMAGE" \
               node .next/standalone/server.js
-            if [ "$REALTIME_DRIVER" = "socketio" ]; then
-              docker run -d \
-                --name capfootball-realtime-1 \
-                --restart unless-stopped \
-                --network host \
-                --env-file "$ENV_FILE" \
-                --env SOCKET_PORT=3020 \
-                "$APP_IMAGE" \
-                node --import tsx server.ts
-            fi
-
-            echo "Check web and socket..."
+            echo "Check web..."
             attempt=0
             check_health() {
               docker exec capfootball-app-1 node -e "fetch('http://127.0.0.1:3019/api/health',{signal:AbortSignal.timeout(5000)}).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))" || return 1
-              if [ "$REALTIME_DRIVER" = "socketio" ]; then
-                docker exec capfootball-realtime-1 node -e "fetch('http://127.0.0.1:3020/socket.io/?EIO=4&transport=polling',{signal:AbortSignal.timeout(5000)}).then(async r=>process.exit(r.ok&&(await r.text()).startsWith('0{')?0:1)).catch(()=>process.exit(1))" || return 1
-              fi
             }
             until check_health; do
               attempt=$((attempt + 1))
@@ -120,4 +110,4 @@ jobs:
               sleep 5
             done
 
-            echo "Deploy success! Web: 3019. Realtime: $REALTIME_DRIVER."
+            echo "Deploy success! Web port: $WEB_PORT. Realtime: Pusher."

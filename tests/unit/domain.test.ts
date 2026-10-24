@@ -4,7 +4,6 @@ import { matchSchema, ratingSchema, messageSchema, venueSchema, profileSchema, d
 import { skillRange } from "../../src/constants/skill";
 import { pageResult, cursorWhere, decodeCursor } from "../../src/lib/pagination";
 import { publicUser } from "../../src/lib/public-user";
-import { createRealtimeToken, verifyRealtimeToken } from "../../src/lib/realtime/token";
 import { dateLabel, timeLabel, money } from "../../src/lib/client";
 import provinces from "../../src/data/provinces.json";
 import { Prisma } from "@prisma/client";
@@ -117,15 +116,6 @@ test("cursor pagination preserves ordering ties and does not expose the lookahea
 test("public reputation is withheld until three ratings", () => {
   assert.equal(publicUser({ ratingAvg: 5, ratingCount: 2 }).ratingAvg, null);
   assert.equal(publicUser({ ratingAvg: 4.5, ratingCount: 3 }).ratingAvg, 4.5);
-});
-test("realtime tokens reject tampering and expire after their short lifetime", () => {
-  process.env.AUTH_SECRET = "test-realtime-token-secret";
-  const token = createRealtimeToken("alice", "private-conv-demo");
-  assert.equal(verifyRealtimeToken(token)?.userId, "alice");
-  assert.equal(verifyRealtimeToken(token + "x"), null);
-  const originalNow = Date.now;
-  Date.now = () => originalNow() + 61000;
-  try { assert.equal(verifyRealtimeToken(token), null); } finally { Date.now = originalNow; }
 });
 test("Vietnam time and fee formatting are independent of browser timezone", () => {
   assert.equal(timeLabel("2026-10-23T12:30:00Z"), "19:30");

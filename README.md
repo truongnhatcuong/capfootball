@@ -46,7 +46,7 @@ node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"
 - Đăng kèo với sân trong danh mục hoặc nhập tay; có thể gợi ý thêm sân chờ duyệt.
 - Người nhận gửi yêu cầu → tạo hội thoại riêng → chủ kèo chấp nhận một yêu cầu. Các yêu cầu khác tự bị từ chối. MySQL 8.4 khóa bản ghi kèo và có unique index theo điều kiện chống hai đối thủ được chấp nhận.
 - Số Zalo chỉ xuất hiện cho đối tác đã chốt khi chủ số đồng ý chia sẻ. Email/điện thoại không nằm trong API công khai.
-- Chat có phân trang, chấm chưa đọc, polling dự phòng, chặn/báo cáo và giới hạn tốc độ. Realtime dùng Pusher hoặc Socket.io theo cấu hình.
+- Chat có phân trang, chấm chưa đọc, polling dự phòng, chặn/báo cáo và giới hạn tốc độ. Realtime dùng Pusher, polling tiếp tục hoạt động khi kết nối realtime tạm lỗi.
 - Sau giờ đá 3 tiếng, hai bên có thể đánh giá; sửa trong 24 giờ. Báo bùng kèo chờ phản bác trong 72 giờ. Khi tranh chấp, admin xử lý trước khi tính uy tín. Điểm trung bình chỉ công khai sau ít nhất 3 đánh giá.
 - Xóa tài khoản sẽ xóa thông tin định danh, token Google, session và push subscription, hủy kèo sắp tới; giữ lịch sử tin nhắn/đánh giá dưới tài khoản ẩn danh.
 
@@ -60,13 +60,9 @@ Nhập sân CSV: cột `name,address,province_code,lat,lng,formats,phone`; `form
 
 ## Realtime và thông báo
 
-`REALTIME_DRIVER=none` và `NEXT_PUBLIC_REALTIME_DRIVER=none` dành cho phát triển, chat vẫn cập nhật bằng polling.
+Realtime trên cả VPS và Vercel dùng Pusher. Điền `PUSHER_APP_ID`, `PUSHER_SECRET`, `NEXT_PUBLIC_PUSHER_KEY`, `NEXT_PUBLIC_PUSHER_CLUSTER` trong `.env`. Workflow lấy public key/cluster để build và giữ app ID/secret ở runtime. Thiếu public key thì giao diện tiếp tục polling.
 
-Vercel: dùng `pusher`, điền `PUSHER_APP_ID`, `PUSHER_SECRET`, `NEXT_PUBLIC_PUSHER_KEY`, `NEXT_PUBLIC_PUSHER_CLUSTER`. Cả server và client cần chọn cùng driver.
-
-VPS: dùng `socketio`; `server.ts` chạy thành tiến trình bên cạnh Next.js. Redis chuyển sự kiện từ app tới mọi realtime instance. Caddy chuyển `/socket.io/*` tới realtime service. Client nhận token HMAC ngắn hạn sau khi API kiểm tra thành viên hội thoại; socket kiểm tra lại trạng thái tài khoản định kỳ.
-
-Web chạy ở cổng `3019`, Socket.IO ở cổng `3020`. Khi dùng Socket.IO trên máy, đặt `REALTIME_DRIVER=socketio`, `NEXT_PUBLIC_REALTIME_DRIVER=socketio`, `NEXT_PUBLIC_SOCKET_URL=http://localhost:3020`, `SOCKET_PORT=3020` và chạy thêm `pnpm dev:socket` ở terminal thứ hai. Redis phải hoạt động. Trên VPS, Caddy dùng `PORT` và `SOCKET_PORT` trong `.env` để chuyển tiếp; trình duyệt vẫn truy cập tên miền qua HTTPS và để trống `NEXT_PUBLIC_SOCKET_URL`.
+Web mặc định ở cổng `3019`. Trên VPS, đổi `PORT` trong `.env` rồi deploy lại để chọn cổng công khai; Docker ánh xạ cổng đó tới cổng nội bộ `3019`. Ví dụ `PORT=5019` tạo ánh xạ `5019:3019`, reverse proxy trỏ tới `127.0.0.1:5019`.
 
 Trong production, `REDIS_URL` bắt buộc cho giới hạn tốc độ; nếu thiếu hoặc Redis lỗi, thao tác ghi bị từ chối với 503. Có thể dùng Redis managed có TCP/TLS cho Vercel. Không dùng URL REST của Redis với ioredis.
 
@@ -105,7 +101,7 @@ Khi không truy cập được registry nhưng đã có TypeScript và Zod cục
 
 ## Triển khai
 
-Chỉ dùng `.github/workflows/deploy.yml`: push `main` hoặc chạy workflow thủ công để SSH vào VPS, `git pull`, đọc `.env`, build Docker ngay trên VPS và chạy web `3019`. Realtime dùng cấu hình hiện có: Pusher, Socket.IO (container ở cổng `3020`) hoặc polling.
+Chỉ dùng `.github/workflows/deploy.yml`: push `main` hoặc chạy workflow thủ công để SSH vào VPS, `git pull`, đọc `.env`, build Docker ngay trên VPS và chạy web `3019`. Realtime dùng Pusher; cổng công khai của web lấy từ `PORT` trong `.env`.
 
 Thêm GitHub Actions secrets `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY`. Mã nguồn và `.env` đặt tại `/home/ubuntu/devops/capfootball`; đổi bằng Actions variable `VPS_DEPLOY_PATH`. VPS dùng MySQL/Redis đang kết nối trong `.env` và cần có Git/Docker. Các biến public khi build lấy từ Actions Variables; xem [hướng dẫn triển khai](docs/DEPLOYMENT.md).
 

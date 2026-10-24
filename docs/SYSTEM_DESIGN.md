@@ -44,12 +44,12 @@ Ngoài phạm vi MVP: thanh toán, đặt sân, bảng xếp hạng, app mobile 
 │ Next.js (React, App Router)                                         │
 │  - Zustand + persist  → localStorage (tỉnh/thành đã chọn)           │
 │  - TanStack Query     → gọi API, cache, polling/optimistic          │
-│  - Socket client      → chat realtime                               │
+│  - Pusher client      → chat realtime                               │
 └───────────────┬───────────────────────────────┬─────────────────────┘
                 │ HTTPS (REST /api/*)           │ WebSocket
 ┌───────────────▼──────────────┐      ┌─────────▼──────────────┐
 │ Next.js Route Handlers       │      │ Realtime service       │
-│  - Auth (Auth.js)            │      │ (Pusher/Ably/Socket.io)│
+│  - Auth (Auth.js)            │      │ (Pusher)│
 │  - Matches / Chat / Users    │      └─────────┬──────────────┘
 │  - Zod validate, rate-limit  │                │
 └───────────────┬──────────────┘                │
@@ -59,12 +59,12 @@ Ngoài phạm vi MVP: thanh toán, đặt sân, bảng xếp hạng, app mobile 
         └────────────────┘
 ```
 
-Deploy gợi ý: **Vercel** (Next.js) + **managed MySQL 8.4** + **Pusher/Ably** (realtime, vì Vercel serverless không giữ WebSocket lâu).
-Nếu tự host VPS: Docker + Socket.io server riêng.
+Deploy gợi ý: **Vercel** (Next.js) + **managed MySQL 8.4** + **Pusher** (realtime, vì Vercel serverless không giữ WebSocket lâu).
+Nếu tự host VPS: Docker chạy web và Pusher cung cấp realtime.
 
 ---
 
-> **Một project duy nhất:** frontend, API (Route Handlers), admin và logic nghiệp vụ nằm chung một repo Next.js. `server.ts` (Socket.io) chỉ dùng cho VPS, cũng nằm trong cùng repo; trên Vercel file này không được dùng.
+> **Một project duy nhất:** frontend, API, admin và logic nghiệp vụ nằm chung một repo Next.js; realtime dùng Pusher trên cả VPS và Vercel.
 
 ### 3.1 Hỗ trợ deploy kép (Vercel & VPS)
 
@@ -76,14 +76,14 @@ export interface RealtimeProvider {
   publish(channel: string, event: string, payload: unknown): Promise<void>;
   authorize(userId: string, channel: string): Promise<unknown>; // xác thực kênh private
 }
-// REALTIME_DRIVER=pusher | ably | socketio  → chọn implementation bằng env
+// Realtime uses Pusher on both deployment targets.
 ```
 
 | | Vercel | VPS (Docker) |
 |---|---|---|
 | App | Serverless Next.js | `next build` với `output: "standalone"`, chạy bằng Docker |
 | DB | Managed MySQL 8.4 | MySQL container (hoặc managed) |
-| Realtime | `REALTIME_DRIVER=pusher` (hoặc `ably`) | `REALTIME_DRIVER=socketio` – Socket.io server chạy cùng/ cạnh app, Redis adapter nếu nhiều instance |
+| Realtime | Pusher | Pusher |
 | Cron hết hạn kèo | Vercel Cron → `GET /api/cron/expire` (kèm `CRON_SECRET`) | crontab/host cron gọi cùng endpoint đó |
 | Rate limit | Upstash Redis | Redis container (cùng interface `@upstash/ratelimit` hoặc `rate-limiter-flexible`) |
 | Reverse proxy | – | Nginx/Caddy + HTTPS, bật upgrade WebSocket |
@@ -96,7 +96,7 @@ Repo dùng duy nhất `.github/workflows/deploy.yml`:
 
 | Workflow | Kích hoạt | Việc làm |
 |---|---|---|
-| `deploy.yml` | Push `main` hoặc chạy thủ công trên `main` | SSH vào VPS → pull đúng commit → đọc `.env` → build Docker tại VPS → chạy web `3019` và realtime đã cấu hình → health check. Database hiện có được giữ; migration/seed không tự chạy. |
+| `deploy.yml` | Push `main` hoặc chạy thủ công trên `main` | SSH vào VPS → pull đúng commit → đọc `.env` → build Docker tại VPS → publish web theo `PORT` và dùng Pusher realtime → health check. Database hiện có được giữ; migration/seed không tự chạy. |
 
 Nguyên tắc:
 - **Migration chạy trước khi đổi code**, chỉ dùng `prisma migrate deploy` trên production (không dùng `migrate dev`/`db push`). Migration phải **tương thích ngược** (thêm cột nullable → deploy code → mới xóa cột cũ) để rollback an toàn.
@@ -120,7 +120,7 @@ Nguyên tắc:
 | Form | **React Hook Form** + zodResolver | – |
 | UI | **Tailwind CSS + shadcn/ui** | MUI, Mantine |
 | Chọn tỉnh/thành | Xem mục 5 | – |
-| Realtime chat | Qua **adapter**: **Pusher/Ably** (Vercel) và **Socket.io** (VPS) – xem mục 3.1 | Supabase Realtime |
+| Realtime chat | Pusher trên cả Vercel và VPS | Polling dự phòng |
 | Ngày giờ | **date-fns** (locale `vi`) | dayjs |
 | Rate limit | **@upstash/ratelimit** | tự viết với Redis |
 | Bản đồ sân | **react-leaflet** + OpenStreetMap (miễn phí, không cần API key) | Google Maps / Mapbox |
@@ -418,7 +418,7 @@ Tất cả trả JSON, validate bằng Zod, lỗi theo dạng `{ error: { code, 
 | POST | `/api/conversations` | Tạo/lấy hội thoại với 1 user (theo `matchId`) | ✔ |
 | GET | `/api/conversations/:id/messages?cursor=` | Lịch sử tin nhắn (phân trang) | ✔ |
 | POST | `/api/conversations/:id/messages` | Gửi tin nhắn → lưu DB → publish realtime | ✔ |
-| POST | `/api/realtime/auth` | Xác thực kênh private (Pusher/Ably) | ✔ |
+| POST | `/api/realtime/auth` | Xác thực kênh private (Pusher) | ✔ |
 | GET | `/api/venues?province=&q=&format=` | Tìm sân trong danh mục theo tỉnh (autocomplete) | – |
 | POST | `/api/venues` | Gợi ý sân mới (status `PENDING`) | ✔ |
 | POST | `/api/push/subscribe` · DELETE | Đăng ký / hủy Web Push | ✔ |
@@ -573,7 +573,7 @@ Nút nhỏ, không chiếm chỗ, không làm phiền khi dùng web.
 - **Trang bắt buộc:** `/terms`, `/privacy`, `/data-deletion`, link cố định ở footer. Google OAuth yêu cầu có URL Chính sách quyền riêng tư công khai khi đưa ứng dụng ra production.
 - **Đồng ý khi đăng ký:** lần đăng nhập Google đầu tiên hiện màn hình "Tôi đồng ý Điều khoản & Chính sách" → lưu `User.termsAcceptedAt`. Chưa đồng ý thì chưa dùng được chức năng ghi (đăng kèo, chat).
 - **Số Zalo:** ô nhập kèm checkbox riêng "Cho phép đối tác đã chốt kèo thấy số Zalo của tôi" → lưu `zaloConsentAt`; bỏ tick thì xóa quyền và ẩn nút Zalo ngay.
-- **Dữ liệu thu thập** (nêu rõ trong chính sách): tên, email, ảnh đại diện từ Google; tỉnh/thành; SĐT Zalo (tùy chọn); tin nhắn; đánh giá. Mục đích, thời gian lưu, bên thứ ba nhận dữ liệu (Google, Vercel/VPS, Pusher/Ably, dịch vụ email, Sentry).
+- **Dữ liệu thu thập** (nêu rõ trong chính sách): tên, email, ảnh đại diện từ Google; tỉnh/thành; SĐT Zalo (tùy chọn); tin nhắn; đánh giá. Mục đích, thời gian lưu, bên thứ ba nhận dữ liệu (Google, Vercel/VPS, Pusher, dịch vụ email, Sentry).
 - **Quyền của người dùng:** xem/sửa hồ sơ, tải dữ liệu của mình (tùy chọn), **xóa tài khoản** (`DELETE /api/me`): đặt `deletedAt`, xóa email/SĐT/ảnh, đổi tên thành "Người dùng đã xóa", xóa subscription push; giữ tin nhắn/đánh giá ở dạng ẩn danh để không phá dữ liệu của đối tác.
 - **Điều khoản** nên nêu: nền tảng chỉ kết nối, không phải bên tổ chức trận đấu, không chịu trách nhiệm về chấn thương, thanh toán tiền sân hay tranh chấp giữa người chơi; quy tắc ứng xử; quyền khóa tài khoản vi phạm; nội dung bị cấm (cá độ, cờ bạc, lừa đảo).
 - **Cá cược:** vì tên miền "kèo", cần cấm rõ ràng nội dung cá độ/ăn tiền trong điều khoản và có từ khóa cảnh báo trong kiểm duyệt (mục 11).
@@ -605,7 +605,6 @@ Nút nhỏ, không chiếm chỗ, không làm phiền khi dùng web.
 ```
 CapFootBall/
 ├─ docs/SYSTEM_DESIGN.md
-├─ server.ts                     # (chỉ VPS) custom server gắn Socket.io
 ├─ Dockerfile · compose.dev.yml
 ├─ .github/workflows/deploy.yml
 ├─ public/ (icons/, sw.js do Serwist sinh ra)
@@ -703,7 +702,7 @@ Tách `route.ts` (mỏng: auth + validate) khỏi `services/` (logic) để dễ
 | 1 | **Kèo theo cá nhân.** Không có model Team; người dùng nhắn riêng cho nhau. `Match.teamName` là trường tùy chọn chỉ để hiển thị. |
 | 2 | **Chỉ cấp tỉnh/thành**, không phường/xã. |
 | 3 | **Đăng nhập chỉ bằng Google** (Auth.js Google provider). Không cần OTP SMS. |
-| 4 | **Deploy cả hai**: Vercel (+ Pusher/Ably) và VPS (Docker + Socket.io). Xem mục 3.1. |
+| 4 | **Deploy cả hai**: Vercel (+ Pusher) và VPS (Docker + Pusher). Xem mục 3.1. |
 | 5 | **Một project duy nhất** (monolith Next.js): web, API, trang admin, realtime adapter cùng một repo. Không tách frontend/backend. |
 | 6 | **Có trang quản lý `/admin`** trong cùng project, phân quyền theo `User.role`. Xem mục 9.1. |
 | 7 | **Nút ủng hộ nhỏ** (donate) bằng QR/chuyển khoản, cấu hình trong admin, không dùng cổng thanh toán. Xem mục 9.2. |

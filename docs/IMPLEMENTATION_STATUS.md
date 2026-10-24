@@ -11,7 +11,7 @@ Ngày 23/10/2026. Đây là mã nguồn ứng dụng được triển khai từ 
 | Kèo | Danh sách/lọc/tìm kiếm/phân trang, đăng/sửa/hủy, trang chi tiết, lịch sử cá nhân |
 | Tài khoản | Auth.js Google, session DB, bootstrap admin, consent, hồ sơ, ẩn danh hóa khi xóa |
 | Nhận kèo | Request riêng, kiểm quyền chủ kèo, khóa MySQL 8.4 khi chốt, tự từ chối yêu cầu khác |
-| Chat | Hội thoại có thành viên, lịch sử/phân trang, chưa đọc, polling, adapter Pusher/Socket.io |
+| Chat | Hội thoại có thành viên, lịch sử/phân trang, chưa đọc, polling, adapter Pusher |
 | Quyền riêng tư | Public user projection, Zalo chỉ cho đối tác đã chốt có consent, API private no-store |
 | Sân bóng | Danh mục, gợi ý chờ duyệt, bản đồ Leaflet/OSM, admin sửa/duyệt/import CSV |
 | Thông báo | DB + chuông, email Nodemailer SMTP tùy cấu hình, push tùy cấu hình, cron hết hạn/nhắc/đánh giá |
@@ -37,10 +37,10 @@ Ngày 23/10/2026. Đây là mã nguồn ứng dụng được triển khai từ 
 
 ## Giới hạn cần hoàn thiện trước production
 
-1. Cấp DB/Redis, Google OAuth, secrets, Pusher hoặc realtime VPS; chạy toàn bộ lint/typecheck/test/build và thử hai tài khoản thật. Các adapter ngoài chưa được kiểm thử với tài khoản dịch vụ thực tế.
+1. Cấp DB/Redis, Google OAuth, secrets, Pusher; chạy toàn bộ lint/typecheck/test/build và thử hai tài khoản thật. Các adapter ngoài chưa được kiểm thử với tài khoản dịch vụ thực tế.
 2. Giao email/push hiện gửi sau khi lưu thông báo; chưa có hàng đợi outbox/retry bền vững. Notification trong web đã lưu, nhưng lỗi giao email/push không tự gửi lại. Email cho tin nhắn offline chưa được bật.
 3. PWA có trang offline và tài nguyên tĩnh; chưa lưu bản sao các kèo vừa xem. Không cache dữ liệu cá nhân hoặc hội thoại.
-4. Preview Vercel với DB branch riêng, đồng bộ cấu hình Compose lên VPS, multi-instance Socket.io load balancing cần quy trình hạ tầng tương ứng. Redis đã phát sự kiện tới các realtime instance; polling transport nhiều instance cần sticky sessions ở proxy.
+4. Preview Vercel cần DB riêng và cấu hình Pusher riêng cho từng môi trường.
 5. Sentry, uptime monitor, off-site backup mã hóa/retention và bài thử khôi phục thật chưa được kết nối. Script backup hiện chỉ tạo dump cục bộ.
 6. Trang điều khoản/quyền riêng tư là bản dự thảo mô tả kỹ thuật. Cần thêm đơn vị vận hành, kênh hỗ trợ, lịch lưu dữ liệu và bản nội dung đã được rà soát.
 7. UI có các thành phần React/CSS trong repo; chưa cài shadcn/ui, React Hook Form, TanStack Table hoặc Recharts. Những thư viện đó là lựa chọn gợi ý trong thiết kế; form/API vẫn validate bằng Zod, bảng admin và biểu đồ thống kê có sẵn.

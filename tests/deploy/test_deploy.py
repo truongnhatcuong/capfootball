@@ -24,7 +24,7 @@ class SourceDeployTests(unittest.TestCase):
         self.bin.mkdir()
         self.log = self.directory / "commands.log"
         self.env_file = self.directory / ".env"
-        self.env_content = b"DATABASE_URL=mysql://existing/database\nSMTP_PASS='keep$this-secret'\nREALTIME_DRIVER=socketio\nNEXT_PUBLIC_REALTIME_DRIVER=socketio\n"
+        self.env_content = b"DATABASE_URL=mysql://existing/database\nSMTP_PASS='keep$this-secret'\nPUSHER_APP_ID=test-app\nNEXT_PUBLIC_PUSHER_KEY=test-public-pusher-key\nPUSHER_SECRET=test-private-key\nNEXT_PUBLIC_PUSHER_CLUSTER=ap1\n"
         self.env_file.write_bytes(self.env_content)
         workflow = (ROOT / ".github/workflows/deploy.yml").read_text(encoding="utf-8")
         self.script = self.directory / "deploy.sh"
@@ -53,7 +53,7 @@ class SourceDeployTests(unittest.TestCase):
         env = {**os.environ, "DEPLOY_PATH": self.directory.as_posix(), "DEPLOY_SHA": SHA,
                "TEST_HEAD": head, "TEST_FAIL_STAGE": failure, "TEST_COMMAND_LOG": self.log.as_posix(),
                "TEST_BIN": self.bin.as_posix(), "TEST_SCRIPT": self.script.as_posix(),
-               "PUBLIC_SOCKET_URL": "https://football.example.test", "PUBLIC_VAPID_KEY": "test-public-key"}
+               "PUBLIC_VAPID_KEY": "test-public-key"}
         # Git Bash prepends its own tools at startup; put the mocks first inside Bash.
         bin_path = '$(cygpath -u "$TEST_BIN")' if os.name == "nt" else "$TEST_BIN"
         command = 'export PATH="' + bin_path + ':$PATH"; bash "$TEST_SCRIPT"'
@@ -63,14 +63,14 @@ class SourceDeployTests(unittest.TestCase):
         commands = self.log.read_text(encoding="utf-8") if self.log.exists() else ""
         return result, commands
 
-    def test_success_preserves_environment_and_checks_both_services(self):
+    def test_success_preserves_environment_and_runs_only_the_web(self):
         result, commands = self.run_deploy()
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("Deploy success!", result.stdout)
         self.assertIn("docker exec capfootball-app-1", commands)
-        self.assertIn("docker exec capfootball-realtime-1", commands)
+        self.assertNotIn("docker exec capfootball-realtime-1", commands)
         self.assertIn("--env PORT=3019", commands)
-        self.assertIn("--env SOCKET_PORT=3020", commands)
+        self.assertIn("--publish 3019:3019", commands)
         self.assertIn("--env-file", commands)
         self.assertNotIn("docker rmi", commands)
         self.assertNotIn("docker compose", commands)
@@ -87,24 +87,39 @@ class SourceDeployTests(unittest.TestCase):
         self.assertNotIn("docker run -d", commands)
         self.assertNotIn("Deploy success!", result.stdout)
 
-    def test_existing_pusher_configuration_is_used_without_a_socket_container(self):
-        self.env_content = self.env_content.replace(b"socketio", b"pusher")
-        self.env_content += b"NEXT_PUBLIC_PUSHER_KEY=test-public-pusher-key\nNEXT_PUBLIC_PUSHER_CLUSTER=ap1\n"
+    def test_custom_vps_port_is_published_without_changing_the_container_port(self):
+        self.env_content += b"PORT=5019\n"
         self.env_file.write_bytes(self.env_content)
         result, commands = self.run_deploy()
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn("NEXT_PUBLIC_REALTIME_DRIVER=pusher", commands)
+        self.assertIn("--publish 5019:3019", commands)
+        self.assertIn("--env PORT=3019", commands)
         self.assertIn("NEXT_PUBLIC_PUSHER_KEY=test-public-pusher-key", commands)
         self.assertNotIn("--name capfootball-realtime-1", commands)
         self.assertNotIn("docker exec capfootball-realtime-1", commands)
         self.assertNotIn("migrate deploy", commands)
         self.assertNotIn("prisma/seed.ts", commands)
 
-    def test_mismatched_realtime_configuration_does_not_build_or_replace_containers(self):
-        self.env_content = self.env_content.replace(b"NEXT_PUBLIC_REALTIME_DRIVER=socketio", b"NEXT_PUBLIC_REALTIME_DRIVER=pusher")
+    def test_invalid_port_does_not_build_or_replace_containers(self):
+        for value in ["0", "65536", "abc", "3019:3019", "999999999999999999999"]:
+            with self.subTest(port=value):
+                self.env_file.write_bytes(self.env_content + b"PORT=" + value.encode() + b"\n")
+                original = self.env_content
+                self.env_content = self.env_file.read_bytes()
+                try:
+                    result, commands = self.run_deploy()
+                finally:
+                    self.env_content = original
+                self.assertEqual(result.returncode, 1, result.stderr)
+                self.assertNotIn("docker build", commands)
+                self.assertNotIn("docker rm", commands)
+
+    def test_missing_pusher_credentials_does_not_replace_containers(self):
+        self.env_content = self.env_content.replace(b"PUSHER_SECRET=test-private-key\n", b"")
         self.env_file.write_bytes(self.env_content)
         result, commands = self.run_deploy()
         self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn("Missing PUSHER_SECRET", result.stderr)
         self.assertNotIn("docker build", commands)
         self.assertNotIn("docker rm", commands)
 

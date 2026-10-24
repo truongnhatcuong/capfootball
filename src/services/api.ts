@@ -89,10 +89,10 @@ export async function dispatch(request: Request, path: string[], body: unknown) 
   }
   if (key === "realtime/auth" && method === "POST") {
     const user = await requireUser(); await rateLimit(`realtime:${user.id}`, 60);
-    const data = z.object({ channel_name: z.string().max(200), socket_id: z.string().regex(/^\d+\.\d+$/).optional() }).parse(body);
+    const data = z.object({ channel_name: z.string().max(200), socket_id: z.string().regex(/^\d+\.\d+$/) }).parse(body);
     if (data.channel_name.startsWith("private-conv-")) await conversationAccess(data.channel_name.slice(13), user.id);
     else assert(data.channel_name === `private-user-${user.id}`, 403, "FORBIDDEN", "Kênh không hợp lệ.");
-    return realtime.authorize(user.id, data.channel_name, data.socket_id);
+    return realtime.authorize(data.channel_name, data.socket_id);
   }
   if (resource === "venues" && !id) {
     if (method === "GET") {
