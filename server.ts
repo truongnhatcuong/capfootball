@@ -34,6 +34,6 @@ io.on("connection", (socket) => {
   }, 30000);
   socket.on("disconnect", () => { clearTimeout(deadline); clearInterval(audit); });
 });
-http.listen(Number(process.env.SOCKET_PORT ?? 3001), "0.0.0.0", () => console.info("Realtime service listening"));
+http.listen(Number(process.env.SOCKET_PORT ?? 3020), "0.0.0.0", () => console.info("Realtime service listening"));
 async function shutdown() { await new Promise<void>((resolve) => io.close(() => resolve())); await subscriber.quit(); await db.$disconnect(); process.exit(0); }
 process.on("SIGTERM", () => void shutdown()); process.on("SIGINT", () => void shutdown());

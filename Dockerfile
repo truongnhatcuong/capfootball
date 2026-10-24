@@ -18,9 +18,9 @@ RUN cp -r public .next/standalone/public && cp -r .next/static .next/standalone/
 FROM node:22-bookworm-slim AS runtime
 WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends openssl ca-certificates && rm -rf /var/lib/apt/lists/* && corepack enable && corepack prepare pnpm@10.33.2 --activate
-ENV NODE_ENV=production HOSTNAME=0.0.0.0 PORT=3000 NEXT_TELEMETRY_DISABLED=1
+ENV NODE_ENV=production HOSTNAME=0.0.0.0 PORT=3019 NEXT_TELEMETRY_DISABLED=1
 # Retain Prisma CLI and tsx for migration jobs and the companion realtime process.
 COPY --from=build --chown=node:node /app /app
 USER node
-EXPOSE 3000 3001
+EXPOSE 3019 3020
 CMD ["node", ".next/standalone/server.js"]

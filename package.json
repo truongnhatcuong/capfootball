@@ -5,9 +5,10 @@
   "packageManager": "pnpm@10.33.2",
   "engines": { "node": ">=22.12" },
   "scripts": {
-    "dev": "next dev --webpack",
+    "dev": "next dev --webpack --port 3019",
+    "dev:socket": "node --env-file=.env --import tsx server.ts",
     "build": "prisma generate && next build --webpack",
-    "start": "next start",
+    "start": "next start --port 3019",
     "start:vps": "tsx server.ts",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",

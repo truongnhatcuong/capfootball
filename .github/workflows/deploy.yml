@@ -1,0 +1,107 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-vps
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Deploy to VPS
+        uses: appleboy/ssh-action@v1.2.2
+        env:
+          DEPLOY_PATH: ${{ vars.VPS_DEPLOY_PATH || '/devops/capfootball' }}
+          DEPLOY_SHA: ${{ github.sha }}
+          PUBLIC_SOCKET_URL: ${{ vars.NEXT_PUBLIC_SOCKET_URL }}
+          PUBLIC_VAPID_KEY: ${{ vars.NEXT_PUBLIC_VAPID_PUBLIC_KEY }}
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          command_timeout: 30m
+          envs: DEPLOY_PATH,DEPLOY_SHA,PUBLIC_SOCKET_URL,PUBLIC_VAPID_KEY
+          script: |
+            set -eu
+            cd "$DEPLOY_PATH"
+
+            echo "Pull latest code..."
+            git pull --ff-only origin main
+            if [ "$(git rev-parse HEAD)" != "$DEPLOY_SHA" ]; then
+              echo "main has changed. Run deployment for its latest commit." >&2
+              exit 1
+            fi
+            test -s .env || { echo "Missing .env on VPS." >&2; exit 1; }
+            APP_IMAGE="capfootball:$DEPLOY_SHA"
+            ENV_MOUNT="type=bind,src=$(pwd)/.env,dst=/run/capfootball.env,readonly"
+
+            echo "Build new image..."
+            docker build \
+              --build-arg NEXT_PUBLIC_REALTIME_DRIVER=socketio \
+              --build-arg "NEXT_PUBLIC_SOCKET_URL=$PUBLIC_SOCKET_URL" \
+              --build-arg "NEXT_PUBLIC_VAPID_PUBLIC_KEY=$PUBLIC_VAPID_KEY" \
+              -t "$APP_IMAGE" .
+
+            # Parse quoted .env values without printing or changing the original file.
+            umask 077
+            ENV_FILE=$(mktemp)
+            trap 'rm -f "$ENV_FILE"' EXIT
+            docker run --rm --user 0:0 --mount "$ENV_MOUNT" "$APP_IMAGE" node -e '
+              const { readFileSync } = require("node:fs");
+              const values = require("node:util").parseEnv(readFileSync("/run/capfootball.env", "utf8"));
+              for (const value of Object.values(values)) {
+                if (/[\r\n\0]/.test(value)) throw new Error("Environment values must be single-line.");
+              }
+              for (const [key, value] of Object.entries(values)) process.stdout.write(key + "=" + value + "\n");
+            ' > "$ENV_FILE"
+
+            echo "Apply database migrations..."
+            docker run --rm --network host --env-file "$ENV_FILE" "$APP_IMAGE" \
+              node node_modules/prisma/build/index.js migrate deploy
+            docker run --rm --network host --env-file "$ENV_FILE" "$APP_IMAGE" \
+              node --import tsx prisma/seed.ts
+
+            echo "Replace web and socket containers..."
+            docker rm -f capfootball-app-1 capfootball-realtime-1 >/dev/null 2>&1 || true
+            docker run -d \
+              --name capfootball-app-1 \
+              --restart unless-stopped \
+              --network host \
+              --env-file "$ENV_FILE" \
+              --env PORT=3019 \
+              --env HOSTNAME=0.0.0.0 \
+              --env REALTIME_DRIVER=socketio \
+              "$APP_IMAGE" \
+              node .next/standalone/server.js
+            docker run -d \
+              --name capfootball-realtime-1 \
+              --restart unless-stopped \
+              --network host \
+              --env-file "$ENV_FILE" \
+              --env SOCKET_PORT=3020 \
+              "$APP_IMAGE" \
+              node --import tsx server.ts
+
+            echo "Check web and socket..."
+            attempt=0
+            until docker exec capfootball-app-1 node -e "fetch('http://127.0.0.1:3019/api/health',{signal:AbortSignal.timeout(5000)}).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))" && \
+              docker exec capfootball-realtime-1 node -e "fetch('http://127.0.0.1:3020/socket.io/?EIO=4&transport=polling',{signal:AbortSignal.timeout(5000)}).then(async r=>process.exit(r.ok&&(await r.text()).startsWith('0{')?0:1)).catch(()=>process.exit(1))"; do
+              attempt=$((attempt + 1))
+              if [ "$attempt" -ge 24 ]; then
+                echo "Deployment health check failed." >&2
+                exit 1
+              fi
+              sleep 5
+            done
+
+            echo "Deploy success! Web: 3019, Socket.IO: 3020."

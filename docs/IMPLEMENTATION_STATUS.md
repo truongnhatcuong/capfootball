@@ -18,7 +18,7 @@ Ngày 23/10/2026. Đây là mã nguồn ứng dụng được triển khai từ 
 | Uy tín | Đánh giá hai bên sau 3 tiếng, sửa 24 giờ, phản bác no-show 72 giờ, tranh chấp và admin xử lý |
 | Quản trị | Dashboard, người dùng, kèo, báo cáo, tỉnh, sân, đánh giá, donate, audit log |
 | PWA | Manifest/icons, Serwist, offline fallback, install prompt, update prompt, push settings |
-| Vận hành | Docker/Caddy, Compose dev/prod, CI, workflow Vercel/VPS, migration/health/rollback, mysqldump |
+| Vận hành | Dockerfile, Compose dev, một workflow deploy trực tiếp VPS, migration/health check |
 
 ## Kiểm tra thực tế trong môi trường hiện tại
 
@@ -28,12 +28,12 @@ Ngày 23/10/2026. Đây là mã nguồn ứng dụng được triển khai từ 
 - Unit test miền nghiệp vụ: **11/11 đạt**, chạy bản JavaScript được biên dịch ngoại tuyến từ chính các test TypeScript.
 - Kiểm tra cú pháp TypeScript/TSX: **đạt** qua `scripts/check-offline.mjs`.
 - ESLint: **0 lỗi, 0 cảnh báo**, dùng ESLint/config Next.js có sẵn trên máy; cần chạy lại với dependency graph đã khóa của dự án.
-- Cấu hình YAML: **6 file hợp lệ** (Compose dev/prod, Dependabot và 3 workflows).
-- Docker Compose production: **config validation đạt** với file môi trường mẫu; không khởi chạy container.
-- Shell scripts triển khai/backup: **đạt kiểm tra cú pháp** bằng `bash -n`.
+- Cấu hình deploy hiện tại: `.github/workflows/deploy.yml`; xem `DEPLOYMENT.md`.
+- Production dùng Docker CLI trực tiếp trong workflow; database/Redis và reverse proxy dùng kết nối hiện có của VPS.
+- Kiểm tra shell deploy bằng `bash -n` và các test tình huống lỗi trong `tests/deploy`.
 - Dependency install: **chưa thành công**. Truy cập npm bị môi trường từ chối (`EACCES`), offline cache thiếu Auth.js, React Query và các thư viện khác.
 - Typecheck đầy đủ, production build, test MySQL 8.4 và browser e2e: **chưa xác minh** vì thiếu dependencies; Docker daemon hiện không chạy.
-- Lockfile: **chưa sinh** do chưa giải quyết được dependencies. CI/Docker tạm dùng `--no-frozen-lockfile`; cần tạo/commit lockfile và đổi sang `--frozen-lockfile` sau lần cài thành công.
+- Lockfile: **chưa sinh** do chưa giải quyết được dependencies. Docker tạm dùng `--no-frozen-lockfile`; cần tạo/commit lockfile và đổi sang `--frozen-lockfile` sau lần cài thành công.
 
 ## Giới hạn cần hoàn thiện trước production
 

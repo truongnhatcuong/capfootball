@@ -18,7 +18,7 @@ pnpm db:seed
 pnpm dev
 ```
 
-Mở http://localhost:3000. Seed chỉ thêm danh mục 34 tỉnh/thành và cấu hình ủng hộ đang tắt; không tạo tài khoản hay kèo giả. Có thể duyệt danh sách công khai trước khi cấu hình Google.
+Mở http://localhost:3019. Seed chỉ thêm danh mục 34 tỉnh/thành và cấu hình ủng hộ đang tắt; không tạo tài khoản hay kèo giả. Có thể duyệt danh sách công khai trước khi cấu hình Google.
 
 `DATABASE_URL` trong `.env.example` khớp MySQL 8.4 ở `compose.dev.yml`. Lần đầu cài dependencies thành công, commit `pnpm-lock.yaml`; sau đó chuyển CI và Docker sang `pnpm install --frozen-lockfile`.
 
@@ -29,7 +29,7 @@ Danh sách loại sân (`Venue.formats`) lưu bằng JSON. Tìm kiếm chữ dù
 ## Đăng nhập Google
 
 1. Tạo OAuth client loại Web application trong Google Cloud Console.
-2. Thêm redirect URI `http://localhost:3000/api/auth/callback/google` và URI tương ứng của từng môi trường production.
+2. Thêm redirect URI `http://localhost:3019/api/auth/callback/google` và URI tương ứng của từng môi trường production.
 3. Điền `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET`, `AUTH_URL` trong `.env`.
 4. Sinh `AUTH_SECRET` và `CRON_SECRET` độc lập bằng lệnh dưới; lưu kết quả vào `.env`.
 5. Điền `ADMIN_EMAILS` trước lần đăng nhập đầu của quản trị viên.
@@ -65,6 +65,8 @@ Nhập sân CSV: cột `name,address,province_code,lat,lng,formats,phone`; `form
 Vercel: dùng `pusher`, điền `PUSHER_APP_ID`, `PUSHER_SECRET`, `NEXT_PUBLIC_PUSHER_KEY`, `NEXT_PUBLIC_PUSHER_CLUSTER`. Cả server và client cần chọn cùng driver.
 
 VPS: dùng `socketio`; `server.ts` chạy thành tiến trình bên cạnh Next.js. Redis chuyển sự kiện từ app tới mọi realtime instance. Caddy chuyển `/socket.io/*` tới realtime service. Client nhận token HMAC ngắn hạn sau khi API kiểm tra thành viên hội thoại; socket kiểm tra lại trạng thái tài khoản định kỳ.
+
+Web chạy ở cổng `3019`, Socket.IO ở cổng `3020`. Khi dùng Socket.IO trên máy, đặt `REALTIME_DRIVER=socketio`, `NEXT_PUBLIC_REALTIME_DRIVER=socketio`, `NEXT_PUBLIC_SOCKET_URL=http://localhost:3020`, `SOCKET_PORT=3020` và chạy thêm `pnpm dev:socket` ở terminal thứ hai. Redis phải hoạt động. Trên VPS, Caddy dùng `PORT` và `SOCKET_PORT` trong `.env` để chuyển tiếp; trình duyệt vẫn truy cập tên miền qua HTTPS và để trống `NEXT_PUBLIC_SOCKET_URL`.
 
 Trong production, `REDIS_URL` bắt buộc cho giới hạn tốc độ; nếu thiếu hoặc Redis lỗi, thao tác ghi bị từ chối với 503. Có thể dùng Redis managed có TCP/TLS cho Vercel. Không dùng URL REST của Redis với ioredis.
 
@@ -103,17 +105,11 @@ Khi không truy cập được registry nhưng đã có TypeScript và Zod cục
 
 ## Triển khai
 
-VPS Ubuntu/Debian: đưa mã nguồn lên máy chủ, trỏ tên miền về VPS, rồi chạy một lệnh trong thư mục dự án:
+Chỉ dùng `.github/workflows/deploy.yml`: push `main` hoặc chạy workflow thủ công để SSH vào VPS, `git pull`, build Docker ngay trên VPS, migrate/seed và thay hai container web `3019`, Socket.IO `3020`.
 
-```sh
-bash ops/install.sh football.tenmiencuaban.vn
-```
+Thêm GitHub Actions secrets `VPS_HOST`, `VPS_USERNAME`, `VPS_KEY`. Mã nguồn và `.env` đặt tại `/devops/capfootball`; đổi bằng Actions variable `VPS_DEPLOY_PATH`. VPS dùng MySQL/Redis đang kết nối trong `.env` và cần có Git/Docker. Các biến public khi build lấy từ Actions Variables; xem [hướng dẫn triển khai](docs/DEPLOYMENT.md).
 
-Script hỏi cấu hình Google/SMTP, tự cài Docker, tạo `.env`, dựng MySQL/Redis, chạy migration/seed và bật HTTPS cùng cron. Cấu hình và dữ liệu hiện có được giữ khi chạy lại. Xem điều kiện và hướng dẫn trong [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
-
-Có Docker Compose cho VPS, Caddy HTTPS, script migrate/health-check/rollback và workflows GitHub Actions cho CI, Vercel, VPS. Bộ cài VPS sinh secret nội bộ; tài khoản Google OAuth và SMTP dùng thông tin bạn cung cấp.
-
-Schema production chỉ cập nhật bằng `prisma migrate deploy`. Giữ migration tương thích ngược để rollback code. Dùng database riêng cho mỗi môi trường.
+Schema production chỉ cập nhật bằng `prisma migrate deploy`. Migration cần tương thích ngược. Chạy các kiểm tra trong phần trên trước khi push `main`.
 
 ## Nguồn kỹ thuật
 

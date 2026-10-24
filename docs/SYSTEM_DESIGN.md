@@ -88,24 +88,22 @@ export interface RealtimeProvider {
 | Rate limit | Upstash Redis | Redis container (cùng interface `@upstash/ratelimit` hoặc `rate-limiter-flexible`) |
 | Reverse proxy | – | Nginx/Caddy + HTTPS, bật upgrade WebSocket |
 
-Client chat cũng đi qua một hook `useRealtime(channel)` che giấu driver, nên component UI không đổi giữa hai môi trường. Cung cấp `docker-compose.yml` (app + mysql + redis) và `.env.example` cho từng môi trường.
+Client chat cũng đi qua một hook `useRealtime(channel)` che giấu driver, nên component UI không đổi giữa hai môi trường. Cung cấp `Dockerfile`, `compose.dev.yml` cho phát triển và `.env.example` cho từng môi trường. VPS dùng MySQL/Redis hiện có.
 
 ### 3.2 CI/CD (GitHub Actions)
 
-Repo duy nhất → 3 workflow:
+Repo dùng duy nhất `.github/workflows/deploy.yml`:
 
 | Workflow | Kích hoạt | Việc làm |
 |---|---|---|
-| `ci.yml` | Pull request & push mọi nhánh | cài deps (cache pnpm) → `prisma validate` + `prisma generate` → `eslint` → `tsc --noEmit` → `vitest` → `next build`. Chạy kèm **service container MySQL** để test với DB thật và thử `prisma migrate deploy` trên DB trống. Playwright e2e chạy riêng, có thể chỉ trên `main`. |
-| `deploy-vercel.yml` | Push `main` (sau khi `ci` xanh) | `prisma migrate deploy` vào DB production của Vercel → `vercel pull/build/deploy --prod`. PR có **preview deployment** với DB riêng (database MySQL thử nghiệm riêng). |
-| `deploy-vps.yml` | Push `main` hoặc tag `v*` | build Docker image → push **GHCR** → SSH vào VPS: `docker compose pull && docker compose run --rm app npx prisma migrate deploy && docker compose up -d` → health check `GET /api/health`; lỗi thì rollback về image tag trước. |
+| `deploy.yml` | Push `main` hoặc chạy thủ công trên `main` | SSH vào VPS → pull đúng commit → build Docker tại VPS → migrate/seed → chạy web `3019` và Socket.IO `3020` → health check. |
 
 Nguyên tắc:
 - **Migration chạy trước khi đổi code**, chỉ dùng `prisma migrate deploy` trên production (không dùng `migrate dev`/`db push`). Migration phải **tương thích ngược** (thêm cột nullable → deploy code → mới xóa cột cũ) để rollback an toàn.
 - **Mỗi môi trường một DB** (Vercel prod, VPS prod, preview). Nếu hai nơi dùng **chung một DB** thì chỉ để **một** workflow chạy migrate, tránh chạy trùng.
-- **Branch protection:** `main` yêu cầu `ci` xanh + 1 review; deploy production dùng GitHub **Environments** (`production-vercel`, `production-vps`) có thể bật phê duyệt thủ công.
-- **Secrets:** `DATABASE_URL_VERCEL`, `DATABASE_URL_VPS`, `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`, `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY` (+ `GITHUB_TOKEN` cho GHCR). Biến runtime của app (`AUTH_SECRET`, `AUTH_GOOGLE_ID/SECRET`, `PUSHER_*`, `VAPID_*`, `ADMIN_EMAILS`, `CRON_SECRET`) đặt ở Vercel Project Settings và ở `.env` trên VPS, không đưa vào image.
-- Dependabot cập nhật dependency; thêm bước `pnpm audit` trong CI.
+- Chạy lint, typecheck, unit/integration và build trước khi push bản production. Workflow hiện chưa tự động rollback; xem `DEPLOYMENT.md`.
+- **Secrets:** `VPS_HOST`, `VPS_USERNAME`, `VPS_KEY`. Biến runtime bí mật giữ trong `.env` trên VPS. Các biến public để build lấy từ Actions Variables.
+- Dependabot cập nhật dependency; chạy `pnpm audit` trước khi phát hành.
 
 ---
 
@@ -608,8 +606,8 @@ Nút nhỏ, không chiếm chỗ, không làm phiền khi dùng web.
 CapFootBall/
 ├─ docs/SYSTEM_DESIGN.md
 ├─ server.ts                     # (chỉ VPS) custom server gắn Socket.io
-├─ Dockerfile · docker-compose.yml
-├─ .github/workflows/ (ci.yml, deploy-vercel.yml, deploy-vps.yml)
+├─ Dockerfile · compose.dev.yml
+├─ .github/workflows/deploy.yml
 ├─ public/ (icons/, sw.js do Serwist sinh ra)
 ├─ prisma/
 │  ├─ schema.prisma
@@ -681,7 +679,7 @@ Tách `route.ts` (mỏng: auth + validate) khỏi `services/` (logic) để dễ
 
 | Giai đoạn | Nội dung |
 |---|---|
-| **M0b – CI/CD** | `ci.yml` ngay từ đầu; `deploy-vercel.yml` / `deploy-vps.yml` khi có bản chạy được đầu tiên |
+| **M0b – CI/CD** | `deploy.yml` triển khai Docker trực tiếp trên VPS khi push `main` |
 | **M0 – Khởi tạo** | `create-next-app`, Tailwind, shadcn/ui, Prisma + MySQL, seed tỉnh/thành |
 | **M1 – Khu vực & kèo** | ProvincePicker + lưu local, CRUD kèo, lọc theo tỉnh/trình độ |
 | **M2 – Tài khoản** | Auth.js (Google), hồ sơ, đồng bộ tỉnh vào user |

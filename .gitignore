@@ -16,4 +16,3 @@ __pycache__/
 backups/
 .cache/
 .pnpm-store/
-.deployed-image
