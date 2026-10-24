@@ -1,0 +1,319 @@
+generator client {
+  provider = "prisma-client-js"
+}
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+enum SkillLevel {
+  WEAK
+  BELOW_AVG
+  AVERAGE
+  ABOVE_AVG
+  GOOD
+  EXCELLENT
+}
+enum MatchStatus {
+  OPEN
+  PENDING
+  MATCHED
+  CANCELLED
+  EXPIRED
+}
+enum RequestStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  CANCELLED
+}
+enum Format {
+  FIVE
+  SEVEN
+  ELEVEN
+}
+enum VenueStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+enum Role {
+  USER
+  ADMIN
+}
+enum UserStatus {
+  ACTIVE
+  BANNED
+}
+enum NotificationType {
+  REQUEST_RECEIVED
+  REQUEST_ACCEPTED
+  REQUEST_REJECTED
+  NEW_MESSAGE
+  MATCH_REMINDER
+  RATE_PROMPT
+  SYSTEM
+}
+enum ReportStatus {
+  OPEN
+  RESOLVED
+  DISMISSED
+}
+enum ReportTarget {
+  MATCH
+  USER
+  MESSAGE
+  RATING
+}
+enum NoShowStatus {
+  NONE
+  PENDING
+  DISPUTED
+  CONFIRMED
+  DISMISSED
+}
+model Province {
+  code    String @id
+  name    String
+  slug    String @unique
+  enabled Boolean @default(true)
+  users   User[]
+  matches Match[]
+  venues  Venue[]
+}
+model User {
+  id              String @id @default(cuid())
+  name            String?
+  email           String? @unique
+  emailVerified   DateTime?
+  image           String? @db.Text
+  phone           String? @unique
+  zaloPhone       String?
+  role            Role @default(USER)
+  status          UserStatus @default(ACTIVE)
+  zaloConsentAt   DateTime?
+  termsAcceptedAt DateTime?
+  emailNotifications Boolean @default(true)
+  ratingAvg       Float?
+  ratingCount     Int @default(0)
+  noShowCount     Int @default(0)
+  deletedAt       DateTime?
+  provinceCode    String?
+  province        Province? @relation(fields: [provinceCode], references: [code])
+  createdAt       DateTime @default(now())
+  accounts        Account[]
+  sessions        Session[]
+  matches         Match[] @relation("MatchOwner")
+  requests        MatchRequest[]
+  conversations   ConversationMember[]
+  messages        Message[]
+  notifications   Notification[]
+  pushSubscriptions PushSubscription[]
+  ratingsGiven    Rating[] @relation("Rater")
+  ratingsReceived Rating[] @relation("RatedUser")
+  reports         Report[]
+  blocks          UserBlock[] @relation("Blocker")
+  blockedBy       UserBlock[] @relation("Blocked")
+}
+model Account {
+  id                String @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+  user              User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@unique([provider, providerAccountId])
+}
+model Session {
+  id           String @id @default(cuid())
+  sessionToken String @unique
+  userId       String
+  expires      DateTime
+  user         User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+model VerificationToken {
+  identifier String
+  token      String @unique
+  expires    DateTime
+  @@unique([identifier, token])
+}
+model Match {
+  id           String @id @default(cuid())
+  ownerId      String
+  owner        User @relation("MatchOwner", fields: [ownerId], references: [id])
+  teamName     String?
+  title        String
+  description  String? @db.Text
+  skill        SkillLevel
+  skillMax     SkillLevel?
+  format       Format
+  kickoffAt    DateTime
+  venueId      String?
+  venueRef     Venue? @relation(fields: [venueId], references: [id])
+  venue        String?
+  address      String? @db.VarChar(250)
+  provinceCode String
+  province     Province @relation(fields: [provinceCode], references: [code])
+  fee          Int?
+  status       MatchStatus @default(OPEN)
+  hidden       Boolean @default(false)
+  createdAt    DateTime @default(now())
+  reminderSentAt DateTime?
+  ratingPromptSentAt DateTime?
+  requests     MatchRequest[]
+  conversations Conversation[]
+  ratings      Rating[]
+  @@index([provinceCode, status, kickoffAt])
+  @@index([skill])
+  @@index([createdAt, id])
+}
+model MatchRequest {
+  id        String @id @default(cuid())
+  matchId   String
+  userId    String
+  note      String? @db.Text
+  status    RequestStatus @default(PENDING)
+  createdAt DateTime @default(now())
+  match     Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  user      User @relation(fields: [userId], references: [id])
+  @@unique([matchId, userId])
+}
+model Conversation {
+  id        String @id @default(cuid())
+  matchId   String
+  match     Match @relation(fields: [matchId], references: [id])
+  requesterId String
+  createdAt DateTime @default(now())
+  members   ConversationMember[]
+  messages  Message[]
+  @@unique([matchId, requesterId])
+}
+model ConversationMember {
+  conversationId String
+  userId         String
+  lastReadAt     DateTime?
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user           User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@id([conversationId, userId])
+}
+model Message {
+  id             String @id @default(cuid())
+  conversationId String
+  senderId       String
+  body           String @db.Text
+  createdAt      DateTime @default(now())
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender         User @relation(fields: [senderId], references: [id])
+  @@index([conversationId, createdAt, id])
+}
+model Venue {
+  id           String @id @default(cuid())
+  name         String
+  normalizedName String
+  address      String @db.VarChar(250)
+  provinceCode String
+  province     Province @relation(fields: [provinceCode], references: [code])
+  lat          Float?
+  lng          Float?
+  formats      Json
+  phone        String?
+  pricePerHour Int?
+  status       VenueStatus @default(PENDING)
+  createdById  String?
+  createdAt    DateTime @default(now())
+  matches      Match[]
+  @@index([provinceCode, status])
+  @@unique([provinceCode, normalizedName])
+}
+model Notification {
+  id        String @id @default(cuid())
+  userId    String
+  user      User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      NotificationType
+  title     String
+  body      String? @db.Text
+  url       String? @db.Text
+  dedupeKey String? @unique
+  readAt    DateTime?
+  createdAt DateTime @default(now())
+  @@index([userId, readAt, createdAt])
+}
+model PushSubscription {
+  id        String @id @default(cuid())
+  userId    String
+  user      User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  endpoint  String @unique @db.VarChar(768)
+  p256dh    String @db.VarChar(200)
+  auth      String
+  createdAt DateTime @default(now())
+  @@index([userId])
+}
+model Rating {
+  id          String @id @default(cuid())
+  matchId     String
+  match       Match @relation(fields: [matchId], references: [id])
+  raterId     String
+  rater       User @relation("Rater", fields: [raterId], references: [id])
+  ratedUserId String
+  ratedUser   User @relation("RatedUser", fields: [ratedUserId], references: [id])
+  happened    Boolean
+  noShow      Boolean @default(false)
+  noShowStatus NoShowStatus @default(NONE)
+  stars       Int?
+  comment     String? @db.Text
+  hidden      Boolean @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  @@unique([matchId, raterId])
+  @@index([ratedUserId])
+}
+model Report {
+  id         String @id @default(cuid())
+  reporterId String
+  reporter   User @relation(fields: [reporterId], references: [id])
+  targetType ReportTarget
+  targetId   String
+  reason     String @db.Text
+  status     ReportStatus @default(OPEN)
+  handledBy  String?
+  createdAt  DateTime @default(now())
+  @@index([status, createdAt])
+}
+model UserBlock {
+  blockerId String
+  blockedId String
+  blocker   User @relation("Blocker", fields: [blockerId], references: [id], onUpdate: Restrict)
+  blocked   User @relation("Blocked", fields: [blockedId], references: [id], onUpdate: Restrict)
+  createdAt DateTime @default(now())
+  @@id([blockerId, blockedId])
+}
+model AuditLog {
+  id        String @id @default(cuid())
+  adminId   String
+  action    String
+  targetId  String?
+  meta      Json?
+  createdAt DateTime @default(now())
+}
+// A shared row lock serializes admin changes and account deletion.
+model DatabaseLock {
+  id Int @id
+}
+model DonateConfig {
+  id          Int @id @default(1)
+  enabled     Boolean @default(false)
+  message     String @default("Ủng hộ để CapFootBall duy trì miễn phí") @db.VarChar(500)
+  bankBin     String?
+  accountNo   String?
+  accountName String?
+  momoPhone   String?
+  momoQrUrl   String? @db.Text
+  paypalUrl   String? @db.Text
+  updatedAt   DateTime @updatedAt
+}

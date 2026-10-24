@@ -1,0 +1,9 @@
+{$APP_DOMAIN} {
+  encode zstd gzip
+  handle /socket.io/* {
+    reverse_proxy realtime:3001
+  }
+  handle {
+    reverse_proxy app:3000
+  }
+}

@@ -1,0 +1,12 @@
+node_modules
+.next
+.git
+.env
+.env.*
+.cache
+.pnpm-store
+playwright-report
+test-results
+backups
+*.log
+**/__pycache__

@@ -1,0 +1,8 @@
+.banner { display: flex; align-items: center; gap: 17px; padding: 22px 26px; margin: 0 0 30px; border: 1px solid #dce7d3; border-radius: 16px; background: #f0f6e8; }
+.icon { display: grid; place-items: center; width: 49px; height: 49px; flex-shrink: 0; border: 1px solid #d5e2c8; border-radius: 14px; background: #e5efd9; color: var(--green); }
+.copy { flex: 1; min-width: 0; }
+.copy h2 { margin: 0 0 5px; color: var(--ink); font-size: 17px; line-height: 1.4; }
+.copy p { margin: 0; color: #6c7e60; font-size: 12px; overflow-wrap: anywhere; }
+.button { flex-shrink: 0; padding: 11px 18px; font-size: 12px; }
+@media (max-width: 760px) { .banner { padding: 18px; gap: 12px; margin-bottom: 24px; } .icon { width: 41px; height: 43px; border-radius: 11px; } .copy h2 { font-size: 14px; } .copy p { font-size: 11px; } }
+@media (max-width: 480px) { .banner { flex-wrap: wrap; } .button { width: 100%; } }

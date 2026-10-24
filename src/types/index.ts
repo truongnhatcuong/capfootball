@@ -1,0 +1,12 @@
+import type { Skill } from "@/constants/skill";
+export type Province = { code: string; name: string; slug: string; enabled?: boolean };
+export type PublicUser = { id: string; name: string | null; image?: string | null; ratingAvg: number | null; ratingCount: number; noShowCount: number; createdAt: string };
+export type Profile = PublicUser & { email: string | null; provinceCode: string | null; zaloPhone: string | null; zaloConsentAt: string | null; termsAcceptedAt: string | null; role: "USER" | "ADMIN"; emailNotifications: boolean };
+export type Venue = { id: string; name: string; address: string; provinceCode: string; lat: number | null; lng: number | null; formats: ("FIVE" | "SEVEN" | "ELEVEN")[]; status: string };
+export type Match = { id: string; title: string; description?: string | null; teamName: string | null; skill: Skill; skillMax: Skill | null; format: "FIVE" | "SEVEN" | "ELEVEN"; kickoffAt: string; venue: string | null; address: string | null; venueRef: Venue | null; province: Province; provinceCode: string; fee: number | null; status: string; hidden: boolean; ownerId: string; owner: PublicUser; createdAt: string; requests?: MatchRequest[]; zaloPhone?: string | null };
+export type MatchRequest = { id: string; userId: string; status: string; note: string | null; user: PublicUser };
+export type Page<T> = { data: T[]; nextCursor: string | null };
+export type ChatMessage = { id: string; conversationId: string; senderId: string; body: string; createdAt: string };
+export type Conversation = { id: string; match: { id: string; title: string; status: string }; members: { userId: string; user: PublicUser }[]; messages: ChatMessage[]; unreadCount: number };
+export type Notification = { id: string; title: string; body: string | null; url: string | null; readAt: string | null; createdAt: string };
+export type Rating = { id: string; raterId: string; ratedUserId: string; happened: boolean; noShow: boolean; noShowStatus: string; stars: number | null; comment: string | null; createdAt: string };

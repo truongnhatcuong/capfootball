@@ -1,0 +1,18 @@
+name: capfootball-dev
+services:
+  mysql:
+    image: mysql:8.4
+    environment: { MYSQL_ROOT_PASSWORD: capfootball_root_local, MYSQL_USER: capfootball, MYSQL_PASSWORD: capfootball_local, MYSQL_DATABASE: capfootball }
+    ports: ["127.0.0.1:3306:3306"]
+    volumes: ["mysql_dev:/var/lib/mysql"]
+    healthcheck:
+      test: ["CMD-SHELL", "MYSQL_PWD=$$MYSQL_PASSWORD mysql -h 127.0.0.1 -u$$MYSQL_USER $$MYSQL_DATABASE -e 'SELECT 1'"]
+      interval: 5s
+      timeout: 5s
+      retries: 15
+      start_period: 30s
+  redis:
+    image: redis:7-alpine
+    ports: ["127.0.0.1:6379:6379"]
+volumes:
+  mysql_dev:
