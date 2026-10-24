@@ -33,7 +33,7 @@ Ngày 23/10/2026. Đây là mã nguồn ứng dụng được triển khai từ 
 - Kiểm tra shell deploy bằng `bash -n` và các test tình huống lỗi trong `tests/deploy`.
 - Dependency install: **chưa thành công**. Truy cập npm bị môi trường từ chối (`EACCES`), offline cache thiếu Auth.js, React Query và các thư viện khác.
 - Typecheck đầy đủ, production build, test MySQL 8.4 và browser e2e: **chưa xác minh** vì thiếu dependencies; Docker daemon hiện không chạy.
-- Lockfile: **chưa sinh** do chưa giải quyết được dependencies. Docker tạm dùng `--no-frozen-lockfile`; cần tạo/commit lockfile và đổi sang `--frozen-lockfile` sau lần cài thành công.
+- Docker hiện dùng pnpm `10.33.2`, cache pnpm store và cache Next.js. Cần đo thời gian build với cache trên VPS thật.
 
 ## Giới hạn cần hoàn thiện trước production
 

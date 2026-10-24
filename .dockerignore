@@ -1,6 +1,13 @@
 node_modules
 .next
 .git
+.github
+docs
+tests
+README.md
+playwright.config.ts
+vitest.integration.config.ts
+*.tsbuildinfo
 .env
 .env.*
 .cache

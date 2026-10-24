@@ -20,7 +20,7 @@ pnpm dev
 
 Mở http://localhost:3019. Seed chỉ thêm danh mục 34 tỉnh/thành và cấu hình ủng hộ đang tắt; không tạo tài khoản hay kèo giả. Có thể duyệt danh sách công khai trước khi cấu hình Google.
 
-`DATABASE_URL` trong `.env.example` khớp MySQL 8.4 ở `compose.dev.yml`. Lần đầu cài dependencies thành công, commit `pnpm-lock.yaml`; sau đó chuyển CI và Docker sang `pnpm install --frozen-lockfile`.
+`DATABASE_URL` trong `.env.example` khớp MySQL 8.4 ở `compose.dev.yml`. Docker dùng pnpm `10.33.2`, cache pnpm store và cache Next.js. Khi tạo `pnpm-lock.yaml`, commit file này để các lần build dùng cùng dependency graph.
 
 Database hiện dùng **MySQL 8.4**. Migration trong `prisma/migrations` dành cho database MySQL mới; SQL PostgreSQL cũ được giữ ở `prisma/legacy-postgresql` để tham khảo. Nếu đã có dữ liệu PostgreSQL, cần xuất và chuyển dữ liệu riêng sang MySQL; đổi `DATABASE_URL` không tự chuyển dữ liệu. Không chạy migration MySQL vào database PostgreSQL cũ.
 
@@ -62,7 +62,7 @@ Nhập sân CSV: cột `name,address,province_code,lat,lng,formats,phone`; `form
 
 Realtime trên cả VPS và Vercel dùng Pusher. Điền `PUSHER_APP_ID`, `PUSHER_SECRET`, `NEXT_PUBLIC_PUSHER_KEY`, `NEXT_PUBLIC_PUSHER_CLUSTER` trong `.env`. Workflow lấy public key/cluster để build và giữ app ID/secret ở runtime. Thiếu public key thì giao diện tiếp tục polling.
 
-Web mặc định ở cổng `3019`. Trên VPS, đổi `PORT` trong `.env` rồi deploy lại để chọn cổng công khai; Docker ánh xạ cổng đó tới cổng nội bộ `3019`. Ví dụ `PORT=5019` tạo ánh xạ `5019:3019`, reverse proxy trỏ tới `127.0.0.1:5019`.
+Web local mặc định ở cổng `3019`. Trên VPS, đổi `PORT` trong `.env` rồi deploy lại để chọn cổng công khai; Docker ánh xạ cổng đó tới cổng nội bộ `2019`. Ví dụ `PORT=5019` tạo ánh xạ `5019:2019`, reverse proxy trỏ tới `127.0.0.1:5019`.
 
 Trong production, `REDIS_URL` bắt buộc cho giới hạn tốc độ; nếu thiếu hoặc Redis lỗi, thao tác ghi bị từ chối với 503. Có thể dùng Redis managed có TCP/TLS cho Vercel. Không dùng URL REST của Redis với ioredis.
 
@@ -101,7 +101,7 @@ Khi không truy cập được registry nhưng đã có TypeScript và Zod cục
 
 ## Triển khai
 
-Chỉ dùng `.github/workflows/deploy.yml`: push `main` hoặc chạy workflow thủ công để SSH vào VPS, `git pull`, đọc `.env`, build Docker ngay trên VPS và chạy web `3019`. Realtime dùng Pusher; cổng công khai của web lấy từ `PORT` trong `.env`.
+Chỉ dùng `.github/workflows/deploy.yml`: push `main` hoặc chạy workflow thủ công để SSH vào VPS, `git pull`, đọc `.env`, build Docker ngay trên VPS và chạy web trong container ở cổng `2019`. Realtime dùng Pusher; cổng công khai của web lấy từ `PORT` trong `.env`.
 
 Thêm GitHub Actions secrets `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY`. Mã nguồn và `.env` đặt tại `/home/ubuntu/devops/capfootball`; đổi bằng Actions variable `VPS_DEPLOY_PATH`. VPS dùng MySQL/Redis đang kết nối trong `.env` và cần có Git/Docker. Các biến public khi build lấy từ Actions Variables; xem [hướng dẫn triển khai](docs/DEPLOYMENT.md).
 
