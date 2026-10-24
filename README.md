@@ -105,11 +105,11 @@ Khi không truy cập được registry nhưng đã có TypeScript và Zod cục
 
 ## Triển khai
 
-Chỉ dùng `.github/workflows/deploy.yml`: push `main` hoặc chạy workflow thủ công để SSH vào VPS, `git pull`, build Docker ngay trên VPS, migrate/seed và thay hai container web `3019`, Socket.IO `3020`.
+Chỉ dùng `.github/workflows/deploy.yml`: push `main` hoặc chạy workflow thủ công để SSH vào VPS, `git pull`, đọc `.env`, build Docker ngay trên VPS và chạy web `3019`. Realtime dùng cấu hình hiện có: Pusher, Socket.IO (container ở cổng `3020`) hoặc polling.
 
 Thêm GitHub Actions secrets `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY`. Mã nguồn và `.env` đặt tại `/home/ubuntu/devops/capfootball`; đổi bằng Actions variable `VPS_DEPLOY_PATH`. VPS dùng MySQL/Redis đang kết nối trong `.env` và cần có Git/Docker. Các biến public khi build lấy từ Actions Variables; xem [hướng dẫn triển khai](docs/DEPLOYMENT.md).
 
-Schema production chỉ cập nhật bằng `prisma migrate deploy`. Migration cần tương thích ngược. Chạy các kiểm tra trong phần trên trước khi push `main`.
+Workflow không tự chạy migration/seed trên database đã có. Khi có thay đổi schema, triển khai migration riêng bằng `prisma migrate deploy`, bảo đảm tương thích ngược. Chạy các kiểm tra trong phần trên trước khi push `main`.
 
 ## Nguồn kỹ thuật
 

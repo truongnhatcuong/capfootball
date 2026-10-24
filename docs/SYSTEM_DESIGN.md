@@ -96,7 +96,7 @@ Repo dùng duy nhất `.github/workflows/deploy.yml`:
 
 | Workflow | Kích hoạt | Việc làm |
 |---|---|---|
-| `deploy.yml` | Push `main` hoặc chạy thủ công trên `main` | SSH vào VPS → pull đúng commit → build Docker tại VPS → migrate/seed → chạy web `3019` và Socket.IO `3020` → health check. |
+| `deploy.yml` | Push `main` hoặc chạy thủ công trên `main` | SSH vào VPS → pull đúng commit → đọc `.env` → build Docker tại VPS → chạy web `3019` và realtime đã cấu hình → health check. Database hiện có được giữ; migration/seed không tự chạy. |
 
 Nguyên tắc:
 - **Migration chạy trước khi đổi code**, chỉ dùng `prisma migrate deploy` trên production (không dùng `migrate dev`/`db push`). Migration phải **tương thích ngược** (thêm cột nullable → deploy code → mới xóa cột cũ) để rollback an toàn.
