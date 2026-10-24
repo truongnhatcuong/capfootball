@@ -102,7 +102,7 @@ Nguyên tắc:
 - **Migration chạy trước khi đổi code**, chỉ dùng `prisma migrate deploy` trên production (không dùng `migrate dev`/`db push`). Migration phải **tương thích ngược** (thêm cột nullable → deploy code → mới xóa cột cũ) để rollback an toàn.
 - **Mỗi môi trường một DB** (Vercel prod, VPS prod, preview). Nếu hai nơi dùng **chung một DB** thì chỉ để **một** workflow chạy migrate, tránh chạy trùng.
 - Chạy lint, typecheck, unit/integration và build trước khi push bản production. Workflow hiện chưa tự động rollback; xem `DEPLOYMENT.md`.
-- **Secrets:** `VPS_HOST`, `VPS_USERNAME`, `VPS_KEY`. Biến runtime bí mật giữ trong `.env` trên VPS. Các biến public để build lấy từ Actions Variables.
+- **Secrets:** `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY`. Biến runtime bí mật giữ trong `.env` trên VPS. Các biến public để build lấy từ Actions Variables.
 - Dependabot cập nhật dependency; chạy `pnpm audit` trước khi phát hành.
 
 ---

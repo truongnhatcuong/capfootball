@@ -9,10 +9,10 @@ Thêm ba Actions secrets:
 | Secret | Giá trị |
 | --- | --- |
 | `VPS_HOST` | IP hoặc hostname của VPS |
-| `VPS_USERNAME` | Tài khoản SSH |
-| `VPS_KEY` | Toàn bộ private key SSH |
+| `VPS_USER` | Tài khoản SSH |
+| `VPS_SSH_KEY` | Toàn bộ private key SSH |
 
-Mặc định thư mục dự án là `/devops/capfootball`. Nếu khác, đặt Actions variable `VPS_DEPLOY_PATH` bằng đường dẫn tuyệt đối. VPS cần có Git, Docker Engine, quyền chạy Docker và quyền `git pull` repository. Working tree phải sạch và đang ở nhánh `main`.
+Mặc định thư mục dự án là `/home/ubuntu/devops/capfootball` (tương ứng `~/devops/capfootball` khi đăng nhập bằng tài khoản `ubuntu`). Nếu khác, đặt Actions variable `VPS_DEPLOY_PATH` bằng đường dẫn tuyệt đối. VPS cần có Git, Docker Engine, quyền chạy Docker và quyền `git pull` repository. Working tree phải sạch và đang ở nhánh `main`.
 
 Actions Variables tùy chọn: `NEXT_PUBLIC_SOCKET_URL` (URL công khai của socket), `NEXT_PUBLIC_VAPID_PUBLIC_KEY` (khóa Web Push công khai). Các giá trị này được nhúng vào image khi build; nếu đổi cần deploy lại. Workflow dùng Socket.IO cho realtime.
 
