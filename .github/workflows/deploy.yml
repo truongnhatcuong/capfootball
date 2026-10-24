@@ -19,7 +19,7 @@ jobs:
     timeout-minutes: 40
     steps:
       - name: Deploy to VPS
-        uses: appleboy/ssh-action@v1.2.2
+        uses: appleboy/ssh-action@v1.2.5
         env:
           DEPLOY_PATH: ${{ vars.VPS_DEPLOY_PATH || '/home/ubuntu/devops/capfootball' }}
           DEPLOY_SHA: ${{ github.sha }}
