@@ -12,7 +12,7 @@
     "start": "next start --port 2022",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test tests/unit/domain.test.ts",
+    "test": "tsx --test tests/unit/domain.test.ts && vitest run --config vitest.unit.config.ts",
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "test:e2e": "playwright test",
     "db:generate": "prisma generate",

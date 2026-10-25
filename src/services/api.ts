@@ -53,7 +53,7 @@ export async function dispatch(request: Request, path: string[], body: unknown) 
     if (id && !action && method === "PATCH") return updateMatch(id, (await writer("edit-match", 10)).id, body);
     if (action === "requests" && method === "POST") { const user = await writer("request", 10, 3600); return requestMatch(id, user.id, requestSchema.parse(body).note); }
     if (action === "rating" && method === "POST") return rateMatch(id, (await writer("rating", 10)).id, body);
-    if (action === "ratings" && method === "GET") {
+    if (id && ["rating", "ratings"].includes(action) && method === "GET") {
       const user = await requireUser(); const detail = await matchDetail(id, user);
       assert(detail.ownerId === user.id || detail.requests.some((r) => r.userId === user.id && r.status === "ACCEPTED"), 403, "FORBIDDEN", "Chỉ hai bên được xem đánh giá của trận.");
       return { data: await prisma.rating.findMany({ where: { matchId: id, hidden: false } }) };
